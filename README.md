@@ -55,9 +55,9 @@ Slide Deck: [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9
 5. Open the form trigger URL in a browser, upload an EDI 820 Excel file, and submit
 6. Review results in the `edi-payment-classifications` sheet - filter on `Needs Review = TRUE` for payments requiring manual attention.  
 
-For detailed configuration, see the [technical documentation](./docs/technical-documentation.md) and [user guide](./docs/user-guide.md).
+For detailed configuration, see the [technical documentation](https://github.com/sanjeev-ragunathan/cornell-treasury-automation/blob/main/docs/technical-documentation.md) and [user guide](https://github.com/sanjeev-ragunathan/cornell-treasury-automation/blob/main/docs/user-guide.md).
 
-> For more information, checkout [limitations](./docs/limitations.md) and [future plans](./docs/future-plans.md).
+> For more information, checkout [limitations](https://github.com/sanjeev-ragunathan/cornell-treasury-automation/blob/main/docs/limitations.md) and [future plans](https://github.com/sanjeev-ragunathan/cornell-treasury-automation/blob/main/docs/future-plans.md).
 
 ---
 
@@ -65,7 +65,7 @@ For detailed configuration, see the [technical documentation](./docs/technical-d
 
 | Name | netID | Link |
 | ---- | ----- | ---- |
-| Sanjeev Ragunathan | sr2432 | [GitHub ↗](https://github.com/sanjeev-ragunathan) |
+| Sanjeev Ragunathan | sr2432 | [GitHub ↗](https://github.com/sanjeev-ragunathan/) |
 | Sruti Sri-Sai Gudapati | ssg98 | [Link ↗]() |
 | Yaqi Liu | yl3879 | [Link ↗]() |
 
