@@ -2,6 +2,7 @@
 > Cornell University. Spring 2026. AI Innovation Lab Project.
 
 Client: Department of Cornell Treasury  
+Alternative reading option - [website ↗](https://sanjeev-ragunathan.github.io/Cornell-Treasury-Automation/)  
 
 <img src="./images/unidentified-payments-banner.png" width="100%" alt="unidentified payments banner - cornell bear">
 
@@ -71,7 +72,7 @@ For detailed configuration, see the [technical documentation](./docs/technical-d
 
 ---
 
-**Links** | [Project Repo - GitHub ↗](https://github.com/sanjeev-ragunathan/Cornell-Treasury-Automation) | [Presentation - Video ↗](https://drive.google.com/file/d/1fiqez93eWJr22FoW7oUTJc4hdSQqJ-pV/view?usp=sharing) | [Slide Deck - PPT ↗](https://drive.google.com/file/d/1ILw9_e2XH4-LqLPLCTXSFpbxkZUkDH3z/view?usp=sharing)  
+**Links** | [Project Repo - GitHub ↗](https://github.com/sanjeev-ragunathan/Cornell-Treasury-Automation) | [Website ↗](https://sanjeev-ragunathan.github.io/Cornell-Treasury-Automation/) | [Presentation - Video ↗](https://drive.google.com/file/d/1fiqez93eWJr22FoW7oUTJc4hdSQqJ-pV/view?usp=sharing) | [Slide Deck - PPT ↗](https://drive.google.com/file/d/1ILw9_e2XH4-LqLPLCTXSFpbxkZUkDH3z/view?usp=sharing)  
 
 ---
 
