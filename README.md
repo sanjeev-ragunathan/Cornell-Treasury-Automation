@@ -4,7 +4,7 @@
 Project Link: [GitHub ↗](https://github.com/sanjeev-ragunathan/Cornell-Treasury-Automation)  
 Client: Department of Cornell Treasury  
 
-[PROJECT BANNER]
+<img src="./images/unidentified-payments-banner.png" width="100%" alt="unidentified payments banner - cornell bear">
 
 ## Problem
 
