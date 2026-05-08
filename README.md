@@ -1,4 +1,4 @@
-# Unidetified Payments - AI Experiment
+# Classify Unidentified Payments - AI Experiment
 > Cornell University. Spring 2026. AI Innovation Lab Project.
 
 [PROJECT BANNER]
