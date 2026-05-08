@@ -2,7 +2,6 @@
 > Cornell University. Spring 2026. AI Innovation Lab Project.
 
 Client: Department of Cornell Treasury  
-Alternative reading option - [website ↗](https://sanjeev-ragunathan.github.io/Cornell-Treasury-Automation/)  
 
 <img src="./images/unidentified-payments-banner.png" width="100%" alt="unidentified payments banner - cornell bear">
 
