@@ -76,4 +76,4 @@ For detailed configuration, see the [technical documentation](./docs/technical-d
 
 ---
 
-> Copyright (c) 2026 Team, MIT License
+> Copyright (c) 2026 Sanjeev Ragunathan, Sruti Sri-Sai Gudapati, Yaqi Liu. MIT License.
