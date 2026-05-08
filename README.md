@@ -1,4 +1,4 @@
-# Classify Unidentified Cornell Payments - AI Experiment
+# Classify Cornell Unidentified Payments - AI Experiment
 > Cornell University. Spring 2026. AI Innovation Lab Project.
 
 Client: Department of Cornell Treasury  
