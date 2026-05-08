@@ -3,7 +3,7 @@
 
 [PROJECT BANNER]
 
-Client: Cornell Treasury
+Client: Department of Cornell Treasury  
 
 ## Problem
 
@@ -18,6 +18,13 @@ Client: Cornell Treasury
 
 ## How to setup and run?
 
-### Limitations
+## Limitations
 
-### Next Steps
+## Next Steps
+
+## The Team
+| Name | netID |
+| --- | --- |
+|Sanjeev Ragunathan|sr2432|
+|Sruti Sri-Sai Gudapati|ssg98|
+|Yaqi Liu|yl3879|
