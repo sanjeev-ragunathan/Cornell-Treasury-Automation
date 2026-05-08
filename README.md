@@ -34,8 +34,8 @@ Slide Deck: [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9
 
 ---
 
-**Links:** [GitHub ↗](https:/github.com/sanjeev-ragunathan/cornell-treasury-automation) | [Video ↗](https://drive.google.com/file/d/1fiqez93eWJr22FoW7oUTJc4hdSQqJ-pV/view?usp=sharing) | [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9_e2XH4-LqLPLCTXSFpbxkZUkDH3z/view?usp=sharing)  
+**Links:** | [GitHub ↗](https:/github.com/sanjeev-ragunathan/cornell-treasury-automation) | [Video ↗](https://drive.google.com/file/d/1fiqez93eWJr22FoW7oUTJc4hdSQqJ-pV/view?usp=sharing) | [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9_e2XH4-LqLPLCTXSFpbxkZUkDH3z/view?usp=sharing)  
 
 ---
 
-> Copyright - team | MIT License
+> Copyright (c) 2026 Team, MIT License
