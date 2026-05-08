@@ -18,38 +18,30 @@ We built an automated pipeline that takes the same EDI Report Treasury already e
 
 The system works in three stages: it parses the raw EDI data into structured payment records, scores each payment against 8,700+ cleaned historical GL transactions using a multi-signal ranking algorithm, and then uses an LLM (GPT-4o) to classify the department with the historical matches as context. The output is a Google Sheet where each row shows the identified payer, recommended department, confidence score, and a review flag. Staff only need to manually review the uncertain cases - the system handles the rest.
 
-### Architecture
+## Architecture
 
-#### High Overview
+### High Overview
 
 The pipeline runs in n8n as two parallel paths within a single workflow. A daily scheduled job reads 101,000+ historical GL records from Google Sheets, cleans and deduplicates them down to ~8,700 rows, and caches the result. When a user uploads an EDI file through a web form, the system parses it into payment blocks, merges them with the cached history, scores matches, formats structured prompts for the AI agent, and reconciles the AI's output with the deterministic scoring results. Final classifications are written to a Google Sheet.
-
-
 
 <center>
     <img src="./images/architecture-overview.png" width="500" alt="architecture overview" vspace="10">
 </center>
 
-
-
-#### History Ranking Algorithm
+### History Ranking Algorithm
 
 The scoring engine is the core of the system. Rather than sending raw payment data to an LLM and hoping for accurate classification, we first run a deterministic matching pass against historical records using five weighted signals:  
-- Payer name similarity (up to +30 pts) — company names are normalized (stripping "LLC", "Inc", etc.) and compared using substring matching and token-level similarity.
-- Amount matching (up to +25 pts) — tiered scoring from exact match down to within $100.
-- Reference ID cross-matching (up to +24 pts) — invoice numbers, trace numbers, and leading numeric IDs from GL descriptions are extracted and compared.
-- Keyword overlap (up to +16 pts) — meaningful word intersection between the EDI text and GL descriptions, with stop words removed.
-- Generic pattern penalty (up to -8 pts) — history rows with vague descriptions like "incoming ACH" are penalized to prevent false positives.
-
-
+- Payer name similarity (up to +30 pts) - company names are normalized (stripping "LLC", "Inc", etc.) and compared using substring matching and token-level similarity.
+- Amount matching (up to +25 pts) - tiered scoring from exact match down to within $100.
+- Reference ID cross-matching (up to +24 pts) - invoice numbers, trace numbers, and leading numeric IDs from GL descriptions are extracted and compared.
+- Keyword overlap (up to +16 pts) - meaningful word intersection between the EDI text and GL descriptions, with stop words removed.
+- Generic pattern penalty (up to -8 pts) - history rows with vague descriptions like "incoming ACH" are penalized to prevent false positives.
 
 <center>
     <img src="./images/architecture-history-ranking.png" width="500" alt="architecture history ranking" vspace="20">
 </center>
 
-
-
-Only matches scoring >= 22. The top 5 are deduplicated and a weighted consensus department is computed. This consensus, along with the match details, is passed to the AI agent as structured context — the LLM confirms or overrides, but it never starts from scratch.
+Only matches scoring >= 22. The top 5 are deduplicated and a weighted consensus department is computed. This consensus, along with the match details, is passed to the AI agent as structured context - the LLM confirms or overrides, but it never starts from scratch.
 
 ### Demo
 Project Presentation + Demo: [Video ↗](https://drive.google.com/file/d/1fiqez93eWJr22FoW7oUTJc4hdSQqJ-pV/view?usp=sharing)  
@@ -62,11 +54,11 @@ Slide Deck: [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9
 3. Set up a Google Sheet with three tabs: `ur-history` (source GL data), `ur-history-cache` (daily cleaned cache), and `edi-payment-classifications` (output)
 4. Run the Schedule Trigger path once manually to populate the history cache
 5. Open the form trigger URL in a browser, upload an EDI 820 Excel file, and submit
-6. Review results in the `edi-payment-classifications` sheet — filter on `Needs Review = TRUE` for payments requiring manual attention.  
+6. Review results in the `edi-payment-classifications` sheet - filter on `Needs Review = TRUE` for payments requiring manual attention.  
 
 For detailed configuration, see the [technical documentation](./docs/technical-documentation.md) and [user guide](./docs/user-guide.md).
 
-###### Checkout
+> For more information, checkout [limitations](./docs/limitations.md) and [future plans](./docs/future-plans.md).
 
 ---
 
