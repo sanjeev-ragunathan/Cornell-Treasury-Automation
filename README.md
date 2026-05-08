@@ -1,7 +1,7 @@
-# Classify Unidentified Payments - AI Experiment
+# Classify Unidentified Cornell Payments - AI Experiment
 > Cornell University. Spring 2026. AI Innovation Lab Project.
 
-**Project Link:** [GitHub ↗](https://github.com/sanjeev-ragunathan/Cornell-Treasury-Automation)
+**Project Link:** [GitHub ↗](https://github.com/sanjeev-ragunathan/Cornell-Treasury-Automation)  
 **Client:** Department of Cornell Treasury  
 
 [PROJECT BANNER]
