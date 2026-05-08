@@ -1,15 +1,15 @@
-# User Guide - EDI Payment Classifier
+# User Guide - Payment Receipt Classifier
 
 This guide is for Cornell Treasury staff who will use the tool to classify incoming payments.
 
 ## What This Tool Does
 
-When you receive an EDI 820 Excel file from Kyriba, this tool automatically figures out which Cornell department each payment should go to. It gives you a Google Sheet with its best guesses, confidence levels, and flags the ones it's unsure about so you only need to manually review those.
+When you receive an EDI Report from Kyriba, this tool automatically figures out which Cornell department each payment should go to. It gives you a Google Sheet with its best guesses, confidence levels, and flags the ones it's unsure about so you only need to manually review those.
 
 ## How to Use It
 
 ### Step 1: Export the EDI file from Kyriba
-Export the EDI 820 report as an Excel (.xlsx) file, same as you normally would.
+Export the EDI report as an Excel (.xlsx) file, same as you normally would.
 
 ### Step 2: Upload the file
 Open the n8n form page (your team lead will provide the URL). Click "Upload XLSX" and select the file. Click Submit.
