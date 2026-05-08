@@ -1,14 +1,23 @@
-# Cornell-Treasury-Automation
-Cornell CS MEng Project, Spring 2026
-> This repo tracks the work done with Cornell Treasury to automate their workflow.
+# Unidetified Payments - AI Experiment
+> Cornell University. Spring 2026. AI Innovation Lab Project.
 
-## Clients
-- Charyl Barnes
-- Kevin Mooney
-- Debra Marie Federation
+[PROJECT BANNER]
 
-## Current status
-- [x] Alpha client meet
-- [x] Shadow Session with Charyl
-- [ ] Extract data from shadow session (Requested access to Charyl to download transcripts)
-- [ ] Decide minimal features to automate (low risk, high impact)
+Client: Cornell Treasury
+
+## Problem
+
+## Our Solution
+
+### Architecture
+#### High Overview
+#### History Ranking Algorithm
+
+### Demo
+- Link of our recording
+
+## How to setup and run?
+
+### Limitations
+
+### Next Steps

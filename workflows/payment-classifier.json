@@ -1,0 +1,803 @@
+{
+  "name": "Classify Payments - sanjeev - feat/history",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Test Form",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload XLSX",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        160
+      ],
+      "id": "aef80580-6d07-432b-98e5-bf198dc63015",
+      "name": "On form submission1",
+      "webhookId": "f54611b3-c1ac-4748-8962-50a54d3234a0"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "Upload_XLSX",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -704,
+        160
+      ],
+      "id": "f3870289-745d-4eba-af78-28a1df7b7b34",
+      "name": "Extract from File1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "openai.gpt-4o",
+          "mode": "list",
+          "cachedResultName": "openai.gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1344,
+        528
+      ],
+      "id": "d18b4dd2-8b5c-4ef4-94af-750521cb899b",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "0NRDO04AR2C4SGIZ",
+          "name": "Invoice Processing for Dining OpenAi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "maxItems": 10
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        160
+      ],
+      "id": "68b7cff5-2a6a-4a6c-9a52-325250be102d",
+      "name": "Limit1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.formatted_prompt }}",
+        "options": {
+          "systemMessage": "=You are a payment classification specialist for Cornell University. You analyze incoming EDI 820 payment records and determine which Cornell department should receive the funds.\n\nRules:\n1. Identify the likely payer from the payment text (company name, not \"Cornell University\").\n2. Only assign a likely_department if there is explicit evidence — from the payment text itself, from historical matches, or from the history consensus.\n3. If history matches exist and show a clear consensus department, use it — but verify it makes sense given the payer and payment details.\n4. Do NOT treat \"Cornell University\" or \"Accounts Payable\" as a department.\n5. Do NOT treat the payer's internal team name as a Cornell department.\n6. If you cannot determine the department with reasonable confidence, set likely_department to null.\n7. The confidence score should reflect how certain you are: 0.9+ means explicit evidence, 0.7-0.9 means strong inference, 0.5-0.7 means educated guess, below 0.5 means low confidence.\n\nReturn ONLY raw JSON with no markdown formatting:\n{\n  \"likely_payer\": \"string or null\",\n  \"likely_department\": \"string or null\",\n  \"confidence\": 0.0,\n  \"reasoning\": \"1-2 sentence explanation\",\n  \"next_action\": \"short recommended action\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        336
+      ],
+      "id": "ba44d6f2-f399-4941-a41b-eed98895708e",
+      "name": "AI Agent1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        144
+      ],
+      "id": "f4fe1042-4127-4a1e-9199-4e44a85537db",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "def excel_date_to_string(value):\n    if value in [None, \"\"]:\n        return None\n    if isinstance(value, (int, float)):\n        n = int(value)\n        y = 1900\n        m = 1\n        d = n - 2\n        dim = [31,28,31,30,31,30,31,31,30,31,30,31]\n        while True:\n            leap = (y % 4 == 0 and y % 100 != 0) or (y % 400 == 0)\n            dim[1] = 29 if leap else 28\n            if d <= dim[m - 1]:\n                break\n            d -= dim[m - 1]\n            m += 1\n            if m > 12:\n                m = 1\n                y += 1\n        return f\"{y:04d}-{m:02d}-{d:02d}\"\n    return str(value).split(\" \")[0]\n\ndef format_row(row):\n    parts = []\n    for key, value in row.items():\n        if value not in [None, \"\", \"undefined\"]:\n            if key == \"Date\":\n                value = excel_date_to_string(value)\n            parts.append(f\"{key}: {value}\")\n    return \" | \".join(parts)\n\ngrouped = []\ncurrent_group = None\n\nfor item in _items:\n    row = item[\"json\"]\n    date_value = row.get(\"Date\")\n    amount_value = row.get(\"Amount\")\n    if date_value not in [None, \"\"]:\n        current_group = {\n            \"record_date\": date_value,\n            \"record_amount\": amount_value,\n            \"rows\": []\n        }\n        grouped.append(current_group)\n    if current_group is not None:\n        current_group[\"rows\"].append(row)\n\noutput = []\nfor group in grouped:\n    formatted_rows = \"\\n\".join(format_row(row) for row in group[\"rows\"])\n    output.append({\n        \"json\": {\n            \"record_date\": excel_date_to_string(group[\"record_date\"]),\n            \"record_amount\": group.get(\"record_amount\"),\n            \"record_text\": formatted_rows\n        }\n    })\n\nreturn output"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        160
+      ],
+      "id": "352cc47b-4ada-49e8-a9cd-2129c98f2b83",
+      "name": "Parse EDI to Payment Records"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\n\noutput = []\n\nfor item in _items:\n    data = item[\"json\"]\n\n    record_date = data.get(\"record_date\", \"unknown\")\n    record_amount = data.get(\"record_amount\", \"unknown\")\n    record_text = data.get(\"record_text\", \"\")\n    history_matches = data.get(\"history_matches\", [])\n    consensus_org = data.get(\"history_consensus_org\")\n    consensus_count = data.get(\"history_consensus_count\", 0)\n\n    # format history matches into readable text\n    if history_matches:\n        match_lines = []\n        for i, m in enumerate(history_matches, 1):\n            score = m.get(\"match_score\", 0)\n            org = m.get(\"specific_org\", \"unknown\")\n            gl_desc = m.get(\"gl_transaction_description\", \"\")\n            acct = m.get(\"acct_and_name\", \"\")\n            obj = m.get(\"object_cd_and_name\", \"\")\n            amount = m.get(\"net_amount\", \"\")\n            reasons = \", \".join(m.get(\"match_reasons\", []))\n            edoc = m.get(\"edoc_description\", \"\")\n\n            line = f\"Match {i} (score: {score}, reasons: {reasons}):\"\n            line += f\"\\n  Org: {org}\"\n            line += f\"\\n  GL Description: {gl_desc}\" if gl_desc else \"\"\n            line += f\"\\n  Account: {acct}\" if acct else \"\"\n            line += f\"\\n  Object: {obj}\" if obj else \"\"\n            line += f\"\\n  EDoc: {edoc}\" if edoc else \"\"\n            line += f\"\\n  Amount: ${amount}\" if amount else \"\"\n            match_lines.append(line)\n\n        history_section = \"\\n\\n\".join(match_lines)\n\n        if consensus_org:\n            history_section += f\"\\n\\nHistory consensus: {consensus_org} ({consensus_count} weighted matches support this)\"\n        else:\n            history_section += \"\\n\\nNo clear consensus across history matches.\"\n    else:\n        history_section = \"No historical matches found for this payment.\"\n\n    prompt = f\"\"\"CURRENT PAYMENT\nDate: {record_date}\nAmount: ${record_amount}\nPayment Details:\n{record_text}\n\nHISTORICAL MATCHES\n{history_section}\"\"\"\n\n    # pass through all original fields plus the formatted prompt\n    out = dict(data)\n    out[\"formatted_prompt\"] = prompt\n    output.append({\"json\": out})\n\nreturn output"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        144
+      ],
+      "id": "6cda5b7b-dde8-4bff-a687-9c2b9983e3c2",
+      "name": "Format Agent Prompt"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        160
+      ],
+      "id": "05740c00-a4a4-4043-a817-3a463ac06cd8",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import re\n\noutput = []\n\nMAX_MATCHES = 5\nMIN_SCORE = 22\nMAX_CANDIDATES_PER_RECORD = 80\nMIN_HISTORY_CONFIDENCE_FOR_CONSENSUS = 2\n\nGENERIC_GL_PATTERNS = [\n    \"incoming ach\",\n    \"incoming wire\",\n    \"incoming wires\",\n    \"deposits to depts\",\n    \"deposits to departments\",\n    \"ur to depts\",\n    \"ur batch\",\n    \"cash receipt\",\n    \"lockbox\",\n]\n\nGENERIC_COMPANY_WORDS = {\n    \"llc\", \"inc\", \"corp\", \"corporation\", \"company\", \"co\", \"ltd\", \"limited\",\n    \"group\", \"services\", \"service\", \"systems\", \"system\", \"solutions\",\n    \"solution\", \"holdings\", \"holding\", \"international\", \"global\", \"north\",\n    \"america\", \"usa\", \"us\", \"ap\", \"the\"\n}\n\nSTOP_WORDS = {\n    \"date\", \"amount\", \"description\", \"value\", \"payment\", \"payments\",\n    \"invoice\", \"number\", \"current\", \"transaction\", \"trace\", \"originating\",\n    \"company\", \"identifier\", \"code\", \"payee\", \"payer\", \"wire\", \"ach\",\n    \"incoming\", \"deposits\", \"dept\", \"depts\", \"reference\", \"effective\",\n    \"control\", \"header\", \"trailer\", \"group\", \"interchange\", \"bank\",\n    \"university\", \"cornell\", \"advice\", \"order\", \"remittance\", \"open\",\n    \"item\", \"seller\", \"buyer\", \"date\", \"paid\", \"credit\", \"debit\"\n}\n\ndef to_float(value):\n    try:\n        if value in [None, \"\", \"undefined\"]:\n            return None\n        return float(str(value).replace(\",\", \"\").strip())\n    except Exception:\n        return None\n\ndef normalize_text(value):\n    if value is None:\n        return \"\"\n    value = str(value).lower().strip()\n    value = re.sub(r\"[^a-z0-9\\s]\", \" \", value)\n    value = re.sub(r\"\\s+\", \" \", value).strip()\n    return value\n\ndef normalize_id(value):\n    if value is None:\n        return \"\"\n    value = str(value).strip().lower()\n    value = re.sub(r\"[^a-z0-9]\", \"\", value)\n    return value\n\ndef normalize_company_text(value):\n    text = normalize_text(value)\n    words = [w for w in text.split() if w not in GENERIC_COMPANY_WORDS]\n    return \" \".join(words)\n\ndef get_keywords(text):\n    words = normalize_text(text).split()\n    return set(\n        w for w in words\n        if len(w) >= 4 and not w.isdigit() and w not in STOP_WORDS\n    )\n\ndef get_company_tokens(value):\n    words = normalize_company_text(value).split()\n    return set(w for w in words if len(w) >= 4 and not w.isdigit())\n\ndef word_overlap_score(text1, text2):\n    words1 = get_keywords(text1)\n    words2 = get_keywords(text2)\n    if not words1 or not words2:\n        return 0\n    return len(words1.intersection(words2))\n\ndef company_similarity(a, b):\n    a_tokens = get_company_tokens(a)\n    b_tokens = get_company_tokens(b)\n\n    if not a_tokens or not b_tokens:\n        return 0.0\n\n    overlap = len(a_tokens.intersection(b_tokens))\n    if overlap == 0:\n        return 0.0\n\n    return (2.0 * overlap) / (len(a_tokens) + len(b_tokens))\n\ndef is_generic_history_row(hist):\n    text = \" \".join([\n        str(hist.get(\"gl_transaction_description\", \"\") or \"\"),\n        str(hist.get(\"edoc_description\", \"\") or \"\")\n    ])\n    text = normalize_text(text)\n    return any(pat in text for pat in GENERIC_GL_PATTERNS)\n\ndef extract_payer_hint(record_text):\n    \"\"\"\n    Extract likely payer from current EDI text.\n    Preference:\n    1. explicit 'Payer | Value: ...'\n    2. first Description line\n    \"\"\"\n    text = str(record_text or \"\")\n\n    payer_match = re.search(r\"Payer\\s*\\|\\s*Value:\\s*(.+)\", text, re.IGNORECASE)\n    if payer_match:\n        payer = payer_match.group(1).strip()\n        payer = re.sub(r\"\\s+\\|\\s*Value:.*$\", \"\", payer).strip()\n        if payer:\n            return payer\n\n    for line in text.splitlines():\n        if line.strip().startswith(\"Description:\"):\n            candidate = line.split(\"Description:\", 1)[-1].strip()\n            candidate = re.sub(r\"\\s+\\d{6,}$\", \"\", candidate).strip()\n            if candidate and len(candidate) >= 4:\n                return candidate\n\n    return \"\"\n\ndef extract_candidate_reference_ids(record_text):\n    text = str(record_text or \"\")\n    ids = set()\n\n    patterns = [\n        r\"Seller's Invoice Number\\s*\\|\\s*Value:\\s*([A-Za-z0-9\\-]+)\",\n        r\"Invoice Date\\s*\\|\\s*Value:\\s*([A-Za-z0-9\\-]+)\",\n        r\"Transaction Reference Number\\s*\\|\\s*Value:\\s*([A-Za-z0-9\\-]+)\",\n        r\"Current Transaction Trace Numbers\\s*\\|\\s*Value:\\s*([A-Za-z0-9\\-]+)\",\n        r\"Payment Number[:\\s]+([A-Za-z0-9\\-]+)\",\n        r\"INVOICE\\s+([A-Za-z0-9\\-]+)\",\n    ]\n\n    for pat in patterns:\n        for m in re.finditer(pat, text, re.IGNORECASE):\n            val = normalize_id(m.group(1))\n            if len(val) >= 4:\n                ids.add(val)\n\n    return ids\n\ndef history_text_blob(hist):\n    return \" \".join([\n        str(hist.get(\"gl_transaction_description\", \"\") or \"\"),\n        str(hist.get(\"edoc_description\", \"\") or \"\"),\n        str(hist.get(\"specific_org\", \"\") or \"\"),\n        str(hist.get(\"acct_and_name\", \"\") or \"\"),\n        str(hist.get(\"object_cd_and_name\", \"\") or \"\"),\n    ])\n\ndef payer_match_score(record, hist):\n    payer_hint = extract_payer_hint(record.get(\"record_text\", \"\"))\n    if not payer_hint:\n        return 0, []\n\n    hist_blob = history_text_blob(hist)\n    hist_desc = str(hist.get(\"gl_transaction_description\", \"\") or \"\")\n    hist_edoc_desc = str(hist.get(\"edoc_description\", \"\") or \"\")\n\n    score = 0\n    reasons = []\n\n    sim_blob = company_similarity(payer_hint, hist_blob)\n    sim_desc = company_similarity(payer_hint, hist_desc)\n    sim_edoc = company_similarity(payer_hint, hist_edoc_desc)\n    best_sim = max(sim_blob, sim_desc, sim_edoc)\n\n    payer_norm = normalize_company_text(payer_hint)\n    hist_blob_norm = normalize_company_text(hist_blob)\n\n    if payer_norm and hist_blob_norm:\n        if payer_norm in hist_blob_norm or hist_blob_norm in payer_norm:\n            score += 30\n            reasons.append(\"payer_substring_match\")\n            return score, reasons\n\n    if best_sim >= 0.95:\n        score += 30\n        reasons.append(\"payer_text_match\")\n    elif best_sim >= 0.75:\n        score += 22\n        reasons.append(\"payer_strong_similarity\")\n    elif best_sim >= 0.50:\n        score += 12\n        reasons.append(\"payer_partial_similarity\")\n\n    return score, reasons\n\ndef reference_id_match_score(record, hist):\n    record_ids = extract_candidate_reference_ids(record.get(\"record_text\", \"\"))\n    hist_values = [\n        hist.get(\"edoc_nbr\"),\n        hist.get(\"edoc_description\"),\n        hist.get(\"gl_transaction_description\"),\n    ]\n    hist_ids = set()\n    for v in hist_values:\n        norm = normalize_id(v)\n        if norm and len(norm) >= 4:\n            hist_ids.add(norm)\n\n    # extract leading numeric ID from GL description (e.g. \"104141 HOWARD HUGHES ME\")\n    gl_desc = str(hist.get(\"gl_transaction_description\", \"\") or \"\")\n    leading_id_match = re.match(r\"^(\\d{4,})\\s\", gl_desc.strip())\n    if leading_id_match:\n        hist_ids.add(normalize_id(leading_id_match.group(1)))\n\n    for rid in record_ids:\n        for hid in hist_ids:\n            if rid == hid:\n                return 24, [\"reference_id_exact_match\"]\n            if rid in hid or hid in rid:\n                return 14, [\"reference_id_partial_match\"]\n    return 0, []\n\ndef cheap_candidate_score(record, hist):\n    score = 0\n\n    record_amount = to_float(record.get(\"record_amount\"))\n    hist_amount = to_float(hist.get(\"net_amount\"))\n\n    if record_amount is not None and hist_amount is not None:\n        diff = abs(record_amount - hist_amount)\n        if diff < 0.01:\n            score += 20\n        elif diff <= 5:\n            score += 12\n        elif diff <= 25:\n            score += 8\n        elif diff <= 100:\n            score += 3\n        else:\n            return -1\n\n    payer_score, _ = payer_match_score(record, hist)\n    score += payer_score\n\n    record_text = record.get(\"record_text\", \"\")\n    hist_text = history_text_blob(hist)\n    overlap = word_overlap_score(record_text, hist_text)\n    score += overlap * 3\n\n    ref_score, _ = reference_id_match_score(record, hist)\n    score += ref_score\n\n    if is_generic_history_row(hist):\n        score -= 6\n\n    return score\n\ndef full_score_history_match(record, hist):\n    score = 0\n    reasons = []\n\n    record_amount = to_float(record.get(\"record_amount\"))\n    hist_amount = to_float(hist.get(\"net_amount\"))\n    record_text = record.get(\"record_text\", \"\")\n\n    hist_desc = hist.get(\"gl_transaction_description\", \"\") or \"\"\n    hist_org = hist.get(\"specific_org\", \"\") or \"\"\n    hist_acct = hist.get(\"acct_and_name\", \"\") or \"\"\n    hist_obj = hist.get(\"object_cd_and_name\", \"\") or \"\"\n    hist_edoc_desc = hist.get(\"edoc_description\", \"\") or \"\"\n\n    # 1. Amount similarity\n    if record_amount is not None and hist_amount is not None:\n        diff = abs(record_amount - hist_amount)\n        if diff < 0.01:\n            score += 25\n            reasons.append(\"exact_amount\")\n        elif diff <= 5:\n            score += 14\n            reasons.append(\"near_amount\")\n        elif diff <= 25:\n            score += 8\n            reasons.append(\"loose_amount\")\n        elif diff <= 100:\n            score += 3\n            reasons.append(\"wide_amount\")\n\n    # 2. Dynamic payer similarity\n    payer_score, payer_reasons = payer_match_score(record, hist)\n    score += payer_score\n    reasons.extend(payer_reasons)\n\n    # 3. Reference / invoice / trace overlap\n    ref_score, ref_reasons = reference_id_match_score(record, hist)\n    score += ref_score\n    reasons.extend(ref_reasons)\n\n    # 4. Keyword overlap with GL description\n    overlap = word_overlap_score(record_text, hist_desc)\n    if overlap >= 3:\n        score += 16\n        reasons.append(\"strong_keyword_overlap\")\n    elif overlap == 2:\n        score += 10\n        reasons.append(\"medium_keyword_overlap\")\n    elif overlap == 1:\n        score += 3\n        reasons.append(\"light_keyword_overlap\")\n\n    # 5. Weak overlap with edoc description\n    edoc_overlap = word_overlap_score(record_text, hist_edoc_desc)\n    if edoc_overlap >= 2:\n        score += 4\n        reasons.append(\"edoc_desc_overlap\")\n\n    # 6. Org/acct/object text appearing directly in record\n    record_norm = normalize_text(record_text)\n\n    for label, value, pts in [\n        (\"org_text_match\", hist_org, 6),\n        (\"acct_text_match\", hist_acct, 4),\n        (\"object_text_match\", hist_obj, 2),\n    ]:\n        value_norm = normalize_text(value)\n        if value_norm and len(value_norm) >= 5 and value_norm in record_norm:\n            score += pts\n            reasons.append(label)\n\n    # 7. Penalize generic history rows\n    if is_generic_history_row(hist):\n        score -= 8\n        reasons.append(\"generic_history_penalty\")\n\n    # 8. Reject amount-only matches\n    non_amount_reasons = [\n        r for r in reasons\n        if r not in {\n            \"exact_amount\", \"near_amount\", \"loose_amount\", \"wide_amount\",\n            \"generic_history_penalty\"\n        }\n    ]\n\n    if not non_amount_reasons:\n        return 0, []\n\n    # 9. Require stronger threshold when history row is generic\n    if is_generic_history_row(hist) and score < 34:\n        return 0, []\n\n    return score, reasons\n\ndef dedupe_matches(matches):\n    seen = set()\n    deduped = []\n\n    for m in matches:\n        key = (\n            m.get(\"specific_org\"),\n            m.get(\"acct_and_name\"),\n            m.get(\"object_cd_and_name\"),\n            m.get(\"gl_transaction_description\"),\n            m.get(\"net_amount\"),\n        )\n        if key not in seen:\n            seen.add(key)\n            deduped.append(m)\n\n    return deduped\n\ndef summarize_history(matches):\n    if not matches:\n        return {\n            \"history_consensus_org\": None,\n            \"history_consensus_count\": 0\n        }\n\n    counts = {}\n    for m in matches:\n        org = m.get(\"specific_org\")\n        score = m.get(\"match_score\", 0)\n\n        if not org:\n            continue\n\n        # weight stronger matches more heavily\n        weight = 1\n        if score >= 45:\n            weight = 3\n        elif score >= 34:\n            weight = 2\n\n        counts[org] = counts.get(org, 0) + weight\n\n    if not counts:\n        return {\n            \"history_consensus_org\": None,\n            \"history_consensus_count\": 0\n        }\n\n    best_org = max(counts, key=counts.get)\n    return {\n        \"history_consensus_org\": best_org,\n        \"history_consensus_count\": counts[best_org]\n    }\n\ncurrent_records = []\nhistory_rows = []\n\nfor item in _items:\n    data = item.get(\"json\", {})\n\n    if \"record_text\" in data and \"record_amount\" in data:\n        current_records.append(data)\n    elif \"gl_transaction_description\" in data and \"specific_org\" in data:\n        history_rows.append(data)\n\nfor record in current_records:\n    record_date = record.get(\"record_date\")\n    record_amount = record.get(\"record_amount\")\n    record_text = record.get(\"record_text\")\n\n    if not record_date and not record_amount and not record_text:\n        continue\n\n    candidate_rows = []\n\n    for hist in history_rows:\n        pre_score = cheap_candidate_score(record, hist)\n        if pre_score >= 0:\n            candidate_rows.append((pre_score, hist))\n\n    candidate_rows.sort(key=lambda x: x[0], reverse=True)\n    candidate_rows = candidate_rows[:MAX_CANDIDATES_PER_RECORD]\n\n    matches = []\n\n    for _, hist in candidate_rows:\n        score, reasons = full_score_history_match(record, hist)\n\n        if score >= MIN_SCORE:\n            matches.append({\n                \"match_score\": score,\n                \"match_reasons\": reasons,\n                \"post_date\": hist.get(\"post_date\"),\n                \"specific_org\": hist.get(\"specific_org\"),\n                \"acct_and_name\": hist.get(\"acct_and_name\"),\n                \"object_cd_and_name\": hist.get(\"object_cd_and_name\"),\n                \"gl_transaction_description\": hist.get(\"gl_transaction_description\"),\n                \"edoc_nbr\": hist.get(\"edoc_nbr\"),\n                \"edoc_description\": hist.get(\"edoc_description\"),\n                \"net_amount\": hist.get(\"net_amount\"),\n            })\n\n    matches = sorted(matches, key=lambda x: x[\"match_score\"], reverse=True)\n    matches = dedupe_matches(matches)\n    matches = matches[:MAX_MATCHES]\n\n    history_summary = summarize_history(matches)\n\n    output.append({\n        \"json\": {\n            \"record_date\": record_date,\n            \"record_amount\": record_amount,\n            \"record_text\": record_text,\n            \"history_matches\": matches,\n            \"history_consensus_org\": history_summary[\"history_consensus_org\"],\n            \"history_consensus_count\": history_summary[\"history_consensus_count\"],\n        }\n    })\n\nreturn output\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        144
+      ],
+      "id": "c827d7d9-6b1d-4b54-a351-c6b8862a5fe7",
+      "name": "Score History Matches"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "edi-payment-classifications",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.record_date }}",
+            "Amount": "={{ $json.record_amount }}",
+            "Payer": "={{ $json.likely_payer }}",
+            "Department": "={{ $json.likely_department }}",
+            "Confidence": "={{ $json.confidence }}",
+            "Evidence Strength": "={{ $json.department_evidence_strength }}",
+            "Needs Review": "={{ $json.needs_review }}",
+            "Review Reason": "={{ $json.review_reason }}",
+            "Reasoning": "={{ $json.reasoning }}",
+            "Next Action": "={{ $json.next_action }}",
+            "ROW ID": "={{ $json.row_id }}"
+          },
+          "matchingColumns": [
+            "ROW ID"
+          ],
+          "schema": [
+            {
+              "id": "ROW ID",
+              "displayName": "ROW ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Payer",
+              "displayName": "Payer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Evidence Strength",
+              "displayName": "Evidence Strength",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Needs Review",
+              "displayName": "Needs Review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Review Reason",
+              "displayName": "Review Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Reasoning",
+              "displayName": "Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Next Action",
+              "displayName": "Next Action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2256,
+        160
+      ],
+      "id": "8bd62451-5051-4e14-a124-67c96cad5a11",
+      "name": "Append result to google sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0sKo592Lh9KpQCo7",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from datetime import datetime, timedelta\nimport re\n\noutput = []\n\nMAX_RECENT_PER_KEY = 3\n\ndef parse_date(value):\n    if value in [None, \"\", \"undefined\"]:\n        return None\n\n    text = str(value).strip()\n    for fmt in [\"%m/%d/%Y\", \"%Y-%m-%d\", \"%m-%d-%Y\"]:\n        try:\n            return datetime.strptime(text, fmt)\n        except Exception:\n            pass\n    return None\n\ndef to_float(value):\n    if value in [None, \"\", \"undefined\"]:\n        return 0.0\n    try:\n        return float(str(value).replace(\",\", \"\").strip())\n    except Exception:\n        return 0.0\n\ndef normalize_text(value):\n    if value in [None, \"\", \"undefined\"]:\n        return \"\"\n    text = str(value).lower().strip()\n    text = re.sub(r\"[^a-z0-9\\s]\", \" \", text)\n    text = re.sub(r\"\\s+\", \" \", text).strip()\n    return text\n\ndef build_pattern_key(row):\n    gl_desc = normalize_text(row.get(\"GL Transaction Description\"))\n    org = normalize_text(row.get(\"Specific Org\"))\n    acct = normalize_text(row.get(\"Acct And Name\"))\n    obj = normalize_text(row.get(\"Object Cd And Name\"))\n    return \" | \".join([gl_desc, org, acct, obj])\n\nrows = []\n\nfor item in _items:\n    raw = item[\"json\"]\n\n    post_date = parse_date(raw.get(\"Post Date\"))\n    if post_date is None:\n        continue\n\n    debit = to_float(raw.get(\"Debit Amount\"))\n    credit = to_float(raw.get(\"Credit Amount\"))\n    net_amount = credit - debit\n\n    def safe_str(v):\n        if v is None:\n            return \"\"\n        return str(v).strip()\n\n    row = {\n        \"post_date\": post_date.strftime(\"%Y-%m-%d\"),\n        \"gl_transaction_description\": safe_str(raw.get(\"GL Transaction Description\")),\n        \"specific_org\": safe_str(raw.get(\"Specific Org\")),\n        \"acct_and_name\": safe_str(raw.get(\"Acct And Name\")),\n        \"object_cd_and_name\": safe_str(raw.get(\"Object Cd And Name\")),\n        \"edoc_nbr\": safe_str(raw.get(\"EDOC Nbr\")),\n        \"edoc_description\": safe_str(raw.get(\"EDoc Description\")),\n        \"debit_amount\": debit,\n        \"credit_amount\": credit,\n        \"net_amount\": net_amount,\n        \"_parsed_post_date\": post_date,\n        \"_pattern_key\": build_pattern_key(raw),\n    }\n    if \"@\" in row[\"edoc_nbr\"]:\n        row[\"edoc_nbr\"] = \"\"\n\n    if row[\"specific_org\"].isdigit():\n        row[\"specific_org\"] = \"\"\n\n    rows.append(row)\n\nif not rows:\n    return []\n\nmax_date = max(r[\"_parsed_post_date\"] for r in rows)\ncutoff_date = max_date - timedelta(days=365)\n\nrecent_rows = []\nolder_rows = []\n\nfor row in rows:\n    if row[\"_parsed_post_date\"] >= cutoff_date:\n        recent_rows.append(row)\n    else:\n        older_rows.append(row)\n\nrecent_rows.sort(key=lambda r: r[\"_parsed_post_date\"], reverse=True)\nolder_rows.sort(key=lambda r: r[\"_parsed_post_date\"], reverse=True)\n\nrecent_key_counts = {}\nfiltered_recent_rows = []\nrecent_keys = set()\n\nfor row in recent_rows:\n    key = row[\"_pattern_key\"]\n    if not key:\n        continue\n\n    count = recent_key_counts.get(key, 0)\n    if count < MAX_RECENT_PER_KEY:\n        filtered_recent_rows.append(row)\n        recent_key_counts[key] = count + 1\n        recent_keys.add(key)\n\nolder_unique_rows = []\nseen_old_keys = set()\n\nfor row in older_rows:\n    key = row[\"_pattern_key\"]\n    if not key:\n        continue\n\n    if key not in recent_keys and key not in seen_old_keys:\n        older_unique_rows.append(row)\n        seen_old_keys.add(key)\n\nfiltered_rows = filtered_recent_rows + older_unique_rows\nfiltered_rows.sort(key=lambda r: r[\"_parsed_post_date\"], reverse=True)\n\nfor row in filtered_rows:\n    clean = dict(row)\n    clean.pop(\"_parsed_post_date\", None)\n    clean.pop(\"_pattern_key\", None)\n    clean[\"row_id\"] = str(len(output))\n    output.append({\"json\": clean})\n\nreturn output\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        -48
+      ],
+      "id": "ae5a34c1-a2b5-4c40-b6f6-af65bf95901f",
+      "name": "Clean and Dedupe History",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\nimport re\n\noutput = []\n\nBAD_DEPARTMENTS = {\n    \"cornell university\",\n    \"cornell universi\",\n    \"accounts payable\",\n    \"ap\",\n    \"payee\",\n    \"payer\",\n    \"cornell\",\n    \"university\",\n    \"null\",\n    \"none\"\n}\n\nGENERIC_PAYER_BAD_VALUES = {\n    \"\",\n    \"payer\",\n    \"payee\",\n    \"cornell university\",\n    \"cornell universi\",\n    \"null\",\n    \"none\",\n    \"unknown\"\n}\n\ndef clean_null_string(value):\n    if value is None:\n        return None\n    if isinstance(value, str):\n        cleaned = value.strip()\n        if cleaned == \"\":\n            return None\n        if cleaned.lower() in {\"null\", \"none\", \"undefined\", \"n/a\", \"na\"}:\n            return None\n        return cleaned\n    return value\n\ndef normalize_text(value):\n    if value is None:\n        return \"\"\n    value = str(value).lower().strip()\n    value = re.sub(r\"[^a-z0-9\\s]\", \" \", value)\n    value = re.sub(r\"\\s+\", \" \", value).strip()\n    return value\n\ndef normalize_payer_name(value):\n    value = clean_null_string(value)\n    if not value or not isinstance(value, str):\n        return value\n\n    cleaned = re.sub(r\"\\s+\", \" \", value).strip()\n\n    # generic cleanup only\n    cleaned = re.sub(r\"\\bllc\\b\", \"LLC\", cleaned, flags=re.IGNORECASE)\n    cleaned = re.sub(r\"\\binc\\b\", \"Inc\", cleaned, flags=re.IGNORECASE)\n    cleaned = re.sub(r\"\\bcorp\\b\", \"Corp\", cleaned, flags=re.IGNORECASE)\n\n    if cleaned.lower() in GENERIC_PAYER_BAD_VALUES:\n        return None\n\n    return cleaned\n\ndef extract_payer_from_record_text(record_text):\n    text = str(record_text or \"\")\n\n    # 1. strongest: explicit payer field\n    m = re.search(r\"Payer\\s*\\|\\s*Value:\\s*(.+)\", text, re.IGNORECASE)\n    if m:\n        payer = m.group(1).strip()\n        payer = re.sub(r\"\\s+\\|\\s*Value:.*$\", \"\", payer).strip()\n        if payer and payer.lower() not in GENERIC_PAYER_BAD_VALUES:\n            return normalize_payer_name(payer)\n\n    # 2. fallback: first description line\n    for line in text.splitlines():\n        line = line.strip()\n        if line.startswith(\"Description:\"):\n            candidate = line.split(\"Description:\", 1)[-1].strip()\n\n            # remove long trailing IDs\n            candidate = re.sub(r\"\\s+\\d{6,}$\", \"\", candidate).strip()\n\n            # skip obvious metadata / malformed description lines\n            bad_starts = [\n                \"***\",\n                \"invalid edi\",\n                \"authorization\",\n                \"security\",\n                \"interchange\",\n                \"functional\",\n                \"transaction\",\n                \"payment amount\",\n                \"credit debit\",\n                \"payment method\",\n                \"payment format\",\n                \"invoice amount\",\n                \"invoice date\",\n                \"payee\",\n            ]\n            cand_norm = candidate.lower()\n            if any(cand_norm.startswith(x) for x in bad_starts):\n                continue\n\n            if candidate and candidate.lower() not in GENERIC_PAYER_BAD_VALUES:\n                return normalize_payer_name(candidate)\n\n    return None\n\ndef evidence_strength(record_text, reasoning, likely_department, history_matches, history_consensus_count):\n    if not likely_department:\n        return None\n\n    rt = (record_text or \"\").lower()\n    rsn = (reasoning or \"\").lower()\n    dept = likely_department.lower()\n\n    if dept in rt or dept in rsn:\n        return \"strong\"\n\n    if \"@cornell.edu\" in rt:\n        return \"strong\"\n\n    if history_matches:\n        top_score = history_matches[0].get(\"match_score\", 0)\n        if history_consensus_count >= 3 or top_score >= 45:\n            return \"strong\"\n        if history_consensus_count >= 2 or top_score >= 34:\n            return \"medium\"\n\n    if \"cornell\" in rt:\n        return \"medium\"\n\n    return \"weak\"\n\ndef should_use_history_department(ai_department, history_org, history_matches, history_consensus_count):\n    if ai_department:\n        return False\n\n    if not history_org:\n        return False\n\n    if not history_matches:\n        return False\n\n    top_score = history_matches[0].get(\"match_score\", 0)\n\n    if history_consensus_count >= 3:\n        return True\n\n    if history_consensus_count >= 2 and top_score >= 34:\n        return True\n\n    if top_score >= 45:\n        return True\n\n    return False\n\ndef sanitize_department(value):\n    value = clean_null_string(value)\n    if not value or not isinstance(value, str):\n        return None\n\n    dept_clean = value.strip()\n    dept_norm = dept_clean.lower()\n\n    if dept_norm in BAD_DEPARTMENTS:\n        return None\n\n    if dept_norm.isdigit():\n        return None\n\n    return dept_clean\n\ndef normalize_history_matches(matches):\n    if not isinstance(matches, list):\n        return []\n\n    normalized = []\n    for m in matches:\n        if not isinstance(m, dict):\n            continue\n\n        try:\n            score = int(float(m.get(\"match_score\", 0)))\n        except Exception:\n            score = 0\n\n        normalized.append({\n            \"match_score\": score,\n            \"match_reasons\": m.get(\"match_reasons\", []),\n            \"post_date\": m.get(\"post_date\"),\n            \"specific_org\": m.get(\"specific_org\"),\n            \"acct_and_name\": m.get(\"acct_and_name\"),\n            \"object_cd_and_name\": m.get(\"object_cd_and_name\"),\n            \"gl_transaction_description\": m.get(\"gl_transaction_description\"),\n            \"edoc_nbr\": m.get(\"edoc_nbr\"),\n            \"edoc_description\": m.get(\"edoc_description\"),\n            \"net_amount\": m.get(\"net_amount\"),\n        })\n\n    return normalized\n\nfor item in _items:\n    data = item[\"json\"]\n\n    record_date = data.get(\"record_date\")\n    record_amount = data.get(\"record_amount\")\n    record_text = data.get(\"record_text\")\n\n    if not record_date and not record_amount and not record_text:\n        continue\n\n    raw = data.get(\"output\", \"\")\n    if raw is None:\n        raw = \"\"\n\n    raw = str(raw).replace(\"```json\", \"\").replace(\"```\", \"\").strip()\n\n    try:\n        parsed = json.loads(raw) if raw else {}\n    except Exception:\n        parsed = {\n            \"likely_payer\": None,\n            \"likely_department\": None,\n            \"confidence\": None,\n            \"reasoning\": None,\n            \"next_action\": None,\n            \"parse_error\": \"Could not parse AI output as JSON\",\n            \"raw_output\": raw\n        }\n\n    likely_payer_ai = normalize_payer_name(parsed.get(\"likely_payer\"))\n    likely_department_ai = sanitize_department(parsed.get(\"likely_department\"))\n    confidence = parsed.get(\"confidence\")\n    reasoning = clean_null_string(parsed.get(\"reasoning\"))\n    next_action = clean_null_string(parsed.get(\"next_action\"))\n\n    try:\n        confidence = float(confidence) if confidence is not None else None\n    except Exception:\n        confidence = None\n\n    history_matches = normalize_history_matches(data.get(\"history_matches\", []))\n    history_consensus_org = sanitize_department(data.get(\"history_consensus_org\"))\n    history_consensus_count = data.get(\"history_consensus_count\", 0)\n\n    try:\n        history_consensus_count = int(history_consensus_count)\n    except Exception:\n        history_consensus_count = 0\n\n    # payer fallback from current record text\n    likely_payer = likely_payer_ai\n    used_record_text_for_payer = False\n\n    if not likely_payer:\n        fallback_payer = extract_payer_from_record_text(record_text)\n        if fallback_payer:\n            likely_payer = fallback_payer\n            used_record_text_for_payer = True\n\n            if confidence is None or confidence < 0.65:\n                confidence = 0.65\n\n            if reasoning:\n                reasoning = reasoning + \" The payer was recovered directly from the record text.\"\n            else:\n                reasoning = \"The payer was recovered directly from the record text.\"\n\n    likely_department = likely_department_ai\n    used_history_for_department = False\n\n    if should_use_history_department(\n        likely_department_ai,\n        history_consensus_org,\n        history_matches,\n        history_consensus_count\n    ):\n        likely_department = history_consensus_org\n        used_history_for_department = True\n\n        if confidence is None:\n            confidence = 0.78\n        else:\n            confidence = max(confidence, 0.78)\n\n        if reasoning:\n            reasoning = reasoning + \" Historical matching also supports this Cornell organization.\"\n        else:\n            reasoning = \"Historical matching supports this Cornell organization.\"\n\n    # no department = no confidence\n    if not likely_department:\n        confidence = None\n    \n    department_evidence_strength = evidence_strength(\n        record_text,\n        reasoning,\n        likely_department,\n        history_matches,\n        history_consensus_count\n    )\n\n    normalized = {\n        \"row_id\": f\"{record_date}_{record_amount}_{hash(str(record_text)[:50]) % 100000}\",\n        \"record_date\": record_date,\n        \"record_amount\": record_amount,\n        \"record_text\": record_text,\n        \"likely_payer\": likely_payer,\n        \"likely_department\": likely_department,\n        \"confidence\": confidence,\n        \"reasoning\": reasoning,\n        \"next_action\": next_action,\n        \"department_evidence_strength\": department_evidence_strength,\n        \"used_record_text_for_payer\": used_record_text_for_payer,\n        \"used_history_for_department\": used_history_for_department,\n        \"history_match_count\": len(history_matches),\n        \"top_history_matches\": history_matches[:3],\n        \"history_consensus_org\": history_consensus_org,\n        \"history_consensus_count\": history_consensus_count,\n    }\n\n    if \"parse_error\" in parsed:\n        normalized[\"parse_error\"] = parsed[\"parse_error\"]\n        normalized[\"raw_output\"] = parsed.get(\"raw_output\")\n\n    # flag for manual review\n    needs_review = (\n        not likely_department\n        or department_evidence_strength in [\"weak\", None]\n        or (confidence is not None and confidence < 0.6)\n        or \"parse_error\" in parsed\n    )\n    normalized[\"needs_review\"] = needs_review\n    normalized[\"review_reason\"] = (\n        \"parse_error\" if \"parse_error\" in parsed\n        else \"no_department\" if not likely_department\n        else \"weak_evidence\" if department_evidence_strength in [\"weak\", None]\n        else \"low_confidence\" if (confidence is not None and confidence < 0.6)\n        else None\n    )\n\n    output.append({\"json\": normalized})\n\nreturn output"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        160
+      ],
+      "id": "2e624d43-3e29-4f82-a99f-5d404b4e5fae",
+      "name": "Reconcide AI + History"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -960,
+        -48
+      ],
+      "id": "17348550-0a73-496e-ae41-64e6d0b8ef9e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1485545877,
+          "mode": "list",
+          "cachedResultName": "ur-history-cache",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit#gid=1485545877"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "post_date": "={{ $json.post_date }}",
+            "gl_transaction_description": "={{ $json.gl_transaction_description }}",
+            "specific_org": "={{ $json.specific_org }}",
+            "acct_and_name": "={{ $json.acct_and_name }}",
+            "object_cd_and_name": "={{ $json.object_cd_and_name }}",
+            "edoc_nbr": "={{ $json.edoc_nbr }}",
+            "edoc_description": "={{ $json.edoc_description }}",
+            "debit_amount": "={{ $json.debit_amount }}",
+            "credit_amount": "={{ $json.credit_amount }}",
+            "net_amount": "={{ $json.net_amount }}",
+            "row_id": "={{ $json.row_id }}"
+          },
+          "matchingColumns": [
+            "row_id"
+          ],
+          "schema": [
+            {
+              "id": "row_id",
+              "displayName": "row_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "post_date",
+              "displayName": "post_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "gl_transaction_description",
+              "displayName": "gl_transaction_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "specific_org",
+              "displayName": "specific_org",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "acct_and_name",
+              "displayName": "acct_and_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "object_cd_and_name",
+              "displayName": "object_cd_and_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "edoc_nbr",
+              "displayName": "edoc_nbr",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "edoc_description",
+              "displayName": "edoc_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "debit_amount",
+              "displayName": "debit_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "credit_amount",
+              "displayName": "credit_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "net_amount",
+              "displayName": "net_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -256,
+        -48
+      ],
+      "id": "5dbcbe55-38c2-4a1e-997d-b7e26a88d3a3",
+      "name": "History Cache - Update",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0sKo592Lh9KpQCo7",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1485545877,
+          "mode": "list",
+          "cachedResultName": "ur-history-cache",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit#gid=1485545877"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        96,
+        -32
+      ],
+      "id": "f3fb6959-704f-4f10-be4b-f01830263862",
+      "name": "History Cache - Read",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0sKo592Lh9KpQCo7",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1729731453,
+          "mode": "list",
+          "cachedResultName": "ur-history",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vcr1G5HNCGbilyswbAzIa0-Gz06otcF1pZkCHiExjqM/edit#gid=1729731453"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -704,
+        -48
+      ],
+      "id": "aa23d929-9423-415f-a1b1-3f3e2bfa587b",
+      "name": "Mapping History",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0sKo592Lh9KpQCo7",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission1": {
+      "main": [
+        [
+          {
+            "node": "Extract from File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File1": {
+      "main": [
+        [
+          {
+            "node": "Parse EDI to Payment Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "History Cache - Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Score History Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse EDI to Payment Records": {
+      "main": [
+        [
+          {
+            "node": "Limit1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Agent Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Reconcide AI + History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score History Matches": {
+      "main": [
+        [
+          {
+            "node": "Format Agent Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean and Dedupe History": {
+      "main": [
+        [
+          {
+            "node": "History Cache - Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcide AI + History": {
+      "main": [
+        [
+          {
+            "node": "Append result to google sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Mapping History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "History Cache - Update": {
+      "main": [
+        []
+      ]
+    },
+    "History Cache - Read": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapping History": {
+      "main": [
+        [
+          {
+            "node": "Clean and Dedupe History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "65257952-0ecf-49f4-8faa-eb137871db78",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e9a449939e0a41ee10a44638b178d0c43295f8e77914b3bdcd7493d7347d7129"
+  },
+  "id": "mmBWAitYBsI1B2eQ",
+  "tags": [
+    {
+      "updatedAt": "2026-03-22T23:47:15.827Z",
+      "createdAt": "2026-03-22T23:47:15.827Z",
+      "id": "3BAM4z5YK1II6mpi",
+      "name": "sanjeev"
+    }
+  ]
+}
