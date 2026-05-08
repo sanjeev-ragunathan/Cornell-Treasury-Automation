@@ -8,6 +8,8 @@
 
 ## Problem
 
+Cornell Treasury receives daily EDI 820 payment files (ACH/wire transfers) containing dozens of payments where the receiving department is unknown. Staff manually review each payment - reading raw EDI text, searching historical records, Googling vendor names, emailing departments - spending 30–40 minutes per payment. With ~282 payments per batch, this represents ~150 hours of manual work.
+
 ## Our Solution
 
 ### Architecture
