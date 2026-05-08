@@ -25,8 +25,9 @@ Slide Deck: [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9
 ## Next Steps
 
 ## The Team
-| Name | netID | Link |
-| --- | --- | --- |
+
+|Name|netID|Link|
+|---|---|---|
 |Sanjeev Ragunathan|sr2432|[GitHub ↗](https://github.com/sanjeev-ragunathan)|
 |Sruti Sri-Sai Gudapati|ssg98|[Link ↗]()|
 |Yaqi Liu|yl3879|[Link ↗]()|
