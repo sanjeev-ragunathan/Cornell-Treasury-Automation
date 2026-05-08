@@ -24,7 +24,9 @@ Slide Deck: [Power Point Presentation ↗](https://drive.google.com/file/d/1ILw9
 
 ## Next Steps
 
-## The Team
+---
+
+### The Team
 
 | Name | netID | Link |
 | ---- | ----- | ---- |
