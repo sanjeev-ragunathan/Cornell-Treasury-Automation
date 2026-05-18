@@ -78,8 +78,8 @@ For detailed configuration, see the [technical documentation](https://github.com
 | Name | netID | Link |
 | ---- | ----- | ---- |
 | Sanjeev Ragunathan | sr2432 | [GitHub ↗](https://github.com/sanjeev-ragunathan/) |
-| Sruti Sri-Sai Gudapati | ssg98 | [Link ↗]() |
-| Yaqi Liu | yl3879 | [Link ↗]() |
+| Sruti Sri-Sai Gudapati | ssg98 | [LinkedIn↗](https://www.linkedin.com/in/sruti-gudapati-63aa95191/) |
+| Yaqi Liu | yl3879 | [LinkedIn↗](https://www.linkedin.com/in/yaqi-liu-1068062ba/) |
 
 ---
 
